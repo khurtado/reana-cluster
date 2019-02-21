@@ -1,0 +1,101 @@
+cluster:
+  type: "kubernetes"
+  # Can be used to specify kubeconfig configuration that reana-cluster will
+  # use to connecting to K8S cluster. If not specified, will default to
+  # '$HOME/.kube/config', which is default location of `kubectl` tool.
+  # config: "./development-kubeconfig.yaml"
+
+  # Specifies which K8S context from the kubeconfig configuration will be used.
+  # If not specified will use the value of `current-context:` key of kubeconfig.
+  version: "v1.12.1"
+  db_config: &db_base_config
+    - REANA_SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://reana:reana@db:5432/reana"
+  root_path: "/var/reana"
+  shared_volume_path: "/var/reana"
+  db_persistence_path: "/var/reana/db"
+  debug: false
+
+components:
+  reana-workflow-controller:
+    type: "docker"
+    image: "reanahub/reana-workflow-controller:latest"
+    mountpoints:
+      - type: hostPath
+        name: reana-workflow-controller-code
+        path: "/code/reana-workflow-controller:/code"
+    environment:
+      - <<: *db_base_config
+      - SHARED_VOLUME_PATH: "/var/reana"
+      - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
+      - WDB_SOCKET_SERVER: "wdb"
+      - WDB_NO_BROWSER_AUTO_OPEN: "True"
+      - FLASK_ENV:  "development"
+
+  reana-job-controller:
+    type: "docker"
+    image: "khurtado/reana-job-controller:latest"
+    hostnetwork: true
+    mountpoints:
+      - type: hostPath
+        name: reana-job-controller-code
+        path: "/code/reana-job-controller:/code"
+      - type: hostPath
+        name: temp
+        path: "/tmp"
+      - type: hostPath
+        name: shared-host-users
+        path: "/etc/passwd"
+        readOnly: true
+      - type: hostPath
+        name: shared-groups
+        path: "/etc/groups"
+        readOnly: true
+    environment:
+      - <<: *db_base_config
+      - SHARED_VOLUME_PATH: "/var/reana"
+      - REANA_STORAGE_BACKEND: "LOCAL"
+      - WDB_SOCKET_SERVER: "wdb"
+      - WDB_NO_BROWSER_AUTO_OPEN: "True"
+      - FLASK_ENV:  "development"
+        # host user id jobs will be submitted as ($ id -u $USER )
+      - VC3USERID: "1002"
+        # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
+      - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=954400_984a_3>'
+
+  reana-server:
+    type: "docker"
+    image: "reanahub/reana-server:latest"
+    mountpoints:
+      - type: hostPath
+        name: reana-server-code
+        path: "/code/reana-server:/code"
+    environment:
+      - <<: *db_base_config
+      - SHARED_VOLUME_PATH: "/var/reana"
+      - WDB_SOCKET_SERVER: "wdb"
+      - WDB_NO_BROWSER_AUTO_OPEN: "True"
+      - FLASK_ENV:  "development"
+
+  reana-message-broker:
+    type: "docker"
+    image: "reanahub/reana-message-broker:latest"
+    mountpoints:
+      - type: hostPath
+        name: reana-message-broker-code
+        path: "/code/reana-message-broker:/code"
+    environment:
+      - WDB_SOCKET_SERVER: "wdb"
+      - WDB_NO_BROWSER_AUTO_OPEN: "True"
+
+  reana-workflow-monitor:
+    type: "docker"
+    image: "reanahub/reana-workflow-monitor:latest"
+    mountpoints:
+      - type: hostPath
+        name: reana-workflow-monitor-code
+        path: "/code/reana-workflow-monitor:/code"
+    environment:
+      - ZMQ_PROXY_CONNECT: tcp://zeromq-msg-proxy.default.svc.cluster.local:8667
+      - WDB_SOCKET_SERVER: "wdb"
+      - WDB_NO_BROWSER_AUTO_OPEN: "True"
+      - FLASK_ENV:  "development"

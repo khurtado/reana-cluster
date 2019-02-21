@@ -10,6 +10,7 @@ spec:
       labels:
         app: job-controller
     spec:
+      hostNetwork: {{RJC_HOSTNETWORK}}
       containers:
       - name: job-controller
         image: {{JOB_CONTROLLER_IMAGE}}
@@ -31,6 +32,7 @@ spec:
         {% for mount in mountpoints %}
         - mountPath: {{mount['path'].split(':')[1]}}
           name: {{mount['name']}}
+          readOnly: {{ mount['readOnly'] or False }}
         {% endfor %}
         env:
         - name: SHARED_VOLUME_PATH_ROOT

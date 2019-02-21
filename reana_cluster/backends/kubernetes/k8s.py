@@ -249,6 +249,9 @@ class KubernetesBackend(ReanaBackendABC):
                 rmb_mountpoints = components['reana-message-broker'] \
                     .get('mountpoints', [])
 
+                rjc_hostnetwork = components['reana-job-controller']\
+                    .get('hostnetwork', False)
+
                 # Render the template using given backend config parameters
                 cluster_conf = template.\
                     render(backend_conf_parameters,
@@ -263,6 +266,7 @@ class KubernetesBackend(ReanaBackendABC):
                            MESSAGE_BROKER_IMAGE=rmb_img,
                            RS_MOUNTPOINTS=rs_mountpoints,
                            RJC_MOUNTPOINTS=rjc_mountpoints,
+                           RJC_HOSTNETWORK=rjc_hostnetwork,
                            RWFC_MOUNTPOINTS=rwfc_mountpoints,
                            RWM_MOUNTPOINTS=rwm_mountpoints,
                            RMB_MOUNTPOINTS=rmb_mountpoints,

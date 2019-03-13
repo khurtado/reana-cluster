@@ -1,0 +1,60 @@
+cluster:
+  type: "kubernetes"
+  version: "v1.12.1"
+  db_config: &db_base_config
+    - REANA_SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://reana:reana@db:5432/reana"
+  root_path: "/var/reana"
+  shared_volume_path: "/var/reana"
+  db_persistence_path: "/var/reana/db"
+
+components:
+  reana-workflow-controller:
+    type: "docker"
+    image: "reanahub/reana-workflow-controller:latest"
+    environment:
+      - <<: *db_base_config
+      - SHARED_VOLUME_PATH: "/var/reana"
+      - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
+
+  reana-job-controller:
+    type: "docker"
+    image: "reanahub/reana-job-controller:latest"
+#    hostnetwork: true
+    mountpoints:
+#      - type: hostPath
+#        name: reana-job-controller-code
+#        path: "/code/reana-job-controller:/code"
+      - type: hostPath
+        name: rjc-temp
+        path: "/tmp:/tmp"
+      - type: hostPath
+        name: rjc-shared-host-users
+        path: "/etc/passwd:/etc/passwd"
+        readOnly: true
+      - type: hostPath
+        name: rjc-shared-groups
+        path: "/etc/groups:/etc/groups"
+        readOnly: true
+    environment:
+      - <<: *db_base_config
+      - SHARED_VOLUME_PATH: "/var/reana"
+        # host user id jobs will be submitted as ($ id -u $USER )
+      - VC3USERID: "1002"
+        # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
+      - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=1212131_9fad_3>'
+
+  reana-server:
+    type: "docker"
+    image: "reanahub/reana-server:latest"
+    environment:
+      - <<: *db_base_config
+
+  reana-message-broker:
+    type: "docker"
+    image: "reanahub/reana-message-broker:latest"
+
+  reana-workflow-monitor:
+    type: "docker"
+    image: "reanahub/reana-workflow-monitor:latest"
+    environment:
+      - ZMQ_PROXY_CONNECT: "tcp://zeromq-msg-proxy.default.svc.cluster.local:8667"

@@ -6,6 +6,8 @@ cluster:
   root_path: "/var/reana"
   shared_volume_path: "/var/reana"
   db_persistence_path: "/var/reana/db"
+  vc3_config: &vc3_user_id
+    - VC3USERID: "1002"
 
 components:
   reana-workflow-controller:
@@ -13,17 +15,16 @@ components:
     image: "reanahub/reana-workflow-controller:latest"
     environment:
       - <<: *db_base_config
+      - <<: *vc3_user_id
       - SHARED_VOLUME_PATH: "/var/reana"
       - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
+      - VC3USERID: "1002"
 
   reana-job-controller:
     type: "docker"
     image: "reanahub/reana-job-controller:latest"
 #    hostnetwork: true
     mountpoints:
-#      - type: hostPath
-#        name: reana-job-controller-code
-#        path: "/code/reana-job-controller:/code"
       - type: hostPath
         name: rjc-temp
         path: "/tmp:/tmp"
@@ -37,11 +38,10 @@ components:
         readOnly: true
     environment:
       - <<: *db_base_config
+      - <<: *vc3_user_id
       - SHARED_VOLUME_PATH: "/var/reana"
-        # host user id jobs will be submitted as ($ id -u $USER )
-      - VC3USERID: "1002"
         # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
-      - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=1212131_9fad_3>'
+      - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=8222_2fc4_3>'
 
   reana-server:
     type: "docker"

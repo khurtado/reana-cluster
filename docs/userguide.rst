@@ -16,7 +16,7 @@ installed inside. How to do this depends on your operating system.
 Versions
 ~~~~~~~~
 
-For REANA v0.5, ``kubectl 1.13.1`` and ``minikube 0.32.0`` are known to work
+For REANA v0.5, ``kubectl 1.14.0`` and ``minikube 1.0.0`` are known to work
 well.
 
 Arch Linux
@@ -47,20 +47,17 @@ Here is one example of well-working versions for REANA v0.5.0:
 .. code-block:: console
 
    $ pacman -Q | grep -iE '(docker|virtualbox|kube|qemu|libvirt)'
-   docker 1:18.09.1-1
-   docker-compose 1.23.2-1
-   docker-machine 0.16.1-1
-   docker-machine-driver-kvm2 0.32.0-1
-   kubectl-bin 1.13.1-1
-   libvirt 4.9.0-2
-   minikube 0.32.0-1
-   python-docker 3.7.0-1
-   python-docker-pycreds 0.4.0-1
-   python-dockerpty 0.4.1-3
-   qemu 3.1.0-1
-   virtualbox 6.0.2-1
-   virtualbox-guest-iso 6.0.2-1
-   virtualbox-host-modules-arch 6.0.2-2
+   docker 1:18.09.3-1
+   docker-machine 0.16.1-2
+   docker-machine-driver-kvm2 0.34.1-1
+   kubectl-bin 1.14.0-1
+   kubernetes-helm 2.12.3-1
+   libvirt 5.1.0-1
+   minikube-bin 1.0.0-1
+   qemu 3.1.0-2
+   virtualbox 6.0.4-4
+   virtualbox-guest-iso 6.0.4-1
+   virtualbox-host-modules-arch 6.0.4-14
 
 Start minikube
 --------------
@@ -71,19 +68,19 @@ running:
 .. code-block:: console
 
    $ minikube config set memory 4096
-   $ minikube start --kubernetes-version="v1.12.1" --feature-gates="TTLAfterFinished=true"
+   $ minikube start --feature-gates="TTLAfterFinished=true"
 
 or, in case of KVM2 hypervisor:
 
 .. code-block:: console
 
-   $ minikube start --kubernetes-version="v1.12.1" --vm-driver=kvm2 --feature-gates="TTLAfterFinished=true"
+   $ minikube start --vm-driver=kvm2 --feature-gates="TTLAfterFinished=true"
 
 You will see an output like:
 
 .. code-block:: console
 
-   Starting local Kubernetes v1.12.1 cluster...
+   Starting local Kubernetes v1.14.0 cluster...
    Starting VM...
    Getting VM IP address...
    Moving files into cluster...
@@ -149,15 +146,17 @@ Initialising a REANA cluster is just a matter of running ``init`` command:
 
 .. code-block:: console
 
-   $ reana-cluster init
+   $ reana-cluster init --traefik
    REANA cluster is initialised.
 
 If you have created a custom configuration, you can use the ``-f`` command-line
-option and specify your own file in the following way:
+option and specify your own file. In the same way you can set URL for REANA cluster
+``--url <cluster_url>``.
 
 .. code-block:: console
 
-  $ reana-cluster -f reana-cluster-custom.yaml init
+  $ reana-cluster -f reana-cluster-custom.yaml --url reana.cern.ch init --traefik
+
 
 Verify REANA components
 -----------------------
@@ -173,8 +172,6 @@ what is defined in REANA cluster specifications file via the ``verify`` command:
    message-broker          match
    server                  match
    workflow-controller     match
-   workflow-monitor        match
-   zeromq-msg-proxy        match
    wdb                     match
    db                      match
 
@@ -191,8 +188,6 @@ running the ``status`` command:
    message-broker          Running
    server                  Running
    workflow-controller     Running
-   workflow-monitor        Running
-   zeromq-msg-proxy        Running
    wdb                     Running
    db                      Running
    REANA cluster is ready.
@@ -226,3 +221,31 @@ were deployed during ``init``, you can run:
 .. code-block:: console
 
    $ reana-cluster down
+
+Delete interactive sessions
+---------------------------
+
+Interactive sessions that were not closed after work have been finished leave
+active Kubernetes objects (`pod`, `service` and `Ingress`) running in the REANA
+cluster. These objects might need to be deleted from time to time. Please note
+that interactive session pod and service are linked to the Ingress object. If it
+gets deleted other two will be deleted automatically.
+
+To delete open interactive sessions use following commands:
+
+.. code-block:: console
+
+   # get all ingresses of open interactive sessions
+   $ kubectl get ingresses | grep interactive
+   interactive-jupyter-ad814137-baec-4ee5-b899-1d549e90b44a   *                 80      103m
+   interactive-jupyter-e4c7aa38-370b-47b7-bf8c-44f5f0f44b44   *                 80      3h48m
+   interactive-jupyter-ec5438b1-65a8-4bba-a52c-ff7970242e83   *                 80      3h16m
+   interactive-jupyter-f401874d-e9a6-4b2b-9b9d-12b0f141a442   *                 80      103m
+   interactive-jupyter-f9f56f92-a533-4bcc-aad9-581f5e31ff0f   *                 80      103m
+   # lets delete all remaining objects of open interactive sessions
+   $ kubectl delete $(kubectl get ingresses -o name | grep interactive)
+   ingress.extensions "interactive-jupyter-ad814137-baec-4ee5-b899-1d549e90b44a" deleted
+   ingress.extensions "interactive-jupyter-e4c7aa38-370b-47b7-bf8c-44f5f0f44b44" deleted
+   ingress.extensions "interactive-jupyter-ec5438b1-65a8-4bba-a52c-ff7970242e83" deleted
+   ingress.extensions "interactive-jupyter-f401874d-e9a6-4b2b-9b9d-12b0f141a442" deleted
+   ingress.extensions "interactive-jupyter-f9f56f92-a533-4bcc-aad9-581f5e31ff0f" deleted

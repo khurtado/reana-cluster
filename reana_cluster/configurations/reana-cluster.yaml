@@ -1,6 +1,6 @@
 cluster:
   type: "kubernetes"
-  version: "v1.12.1"
+  version: "v1.14.0"
   db_config: &db_base_config
     - REANA_SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://reana:reana@db:5432/reana"
   root_path: "/var/reana"
@@ -39,9 +39,3 @@ components:
   reana-message-broker:
     type: "docker"
     image: "reanahub/reana-message-broker:0.4.0"
-
-  reana-workflow-monitor:
-    type: "docker"
-    image: "reanahub/reana-workflow-monitor:0.4.0"
-    environment:
-      - ZMQ_PROXY_CONNECT: "tcp://zeromq-msg-proxy.default.svc.cluster.local:8667"

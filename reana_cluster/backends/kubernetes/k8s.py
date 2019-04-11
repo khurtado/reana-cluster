@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # This file is part of REANA.
-# Copyright (C) 2017, 2018 CERN.
+# Copyright (C) 2017, 2018, 2019 CERN.
 #
 # REANA is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
@@ -9,12 +9,14 @@
 
 import json
 import logging
+import os
+import shlex
 import subprocess
 
 import pkg_resources
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound, \
-    TemplateSyntaxError
+from jinja2 import (Environment, FileSystemLoader, TemplateNotFound,
+                    TemplateSyntaxError)
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client import Configuration
@@ -38,8 +40,8 @@ class KubernetesBackend(ReanaBackendABC):
     _conf = {
         'templates_folder': pkg_resources.resource_filename(
             __name__, '/templates'),
-        'min_version': 'v1.12.1',
-        'max_version': 'v1.12.1',
+        'min_version': 'v1.14.0',
+        'max_version': 'v1.14.0',
     }
 
     def __init__(self,
@@ -50,7 +52,8 @@ class KubernetesBackend(ReanaBackendABC):
                  cephfs=False,
                  cephfs_volume_size=None,
                  cvmfs=False,
-                 debug=False):
+                 debug=False,
+                 url=None):
         """Initialise Kubernetes specific ReanaBackend-object.
 
         :param cluster_spec: Dictionary representing complete REANA
@@ -75,7 +78,7 @@ class KubernetesBackend(ReanaBackendABC):
         :param cvmfs: Boolean flag toggling the mounting of cvmfs volumes in
             the cluster pods.
         :param debug: Boolean flag setting debug mode.
-
+        :param url: REANA cluster url.
         """
         logging.debug('Creating a ReanaBackend object '
                       'for Kubernetes interaction.')
@@ -108,7 +111,8 @@ class KubernetesBackend(ReanaBackendABC):
             self.generate_configuration(cluster_spec,
                                         cephfs=cephfs,
                                         cephfs_volume_size=cephfs_volume_size,
-                                        debug=debug)
+                                        debug=debug,
+                                        url=url)
 
     @property
     def cluster_type(self):
@@ -141,7 +145,7 @@ class KubernetesBackend(ReanaBackendABC):
 
     @classmethod
     def generate_configuration(cls, cluster_spec, cvmfs=False, cephfs=False,
-                               cephfs_volume_size=None, debug=False):
+                               cephfs_volume_size=None, debug=False, url=None):
         """Generate Kubernetes manifest files used to init REANA cluster.
 
         :param cluster_spec: Dictionary representing complete REANA
@@ -153,6 +157,7 @@ class KubernetesBackend(ReanaBackendABC):
             deployed with CVMFS or not.
         :param debug: Boolean which represents whether REANA is
             deployed in debug mode or not.
+        :param url: REANA cluster url.
 
         :return: A generator/iterable of generated Kubernetes YAML manifests
             as Python objects.
@@ -171,7 +176,8 @@ class KubernetesBackend(ReanaBackendABC):
             with open(be_conf_params_fp) as f:
 
                 # Load backend conf params
-                backend_conf_parameters = yaml.load(f.read())
+                backend_conf_parameters = yaml.load(f.read(),
+                                                    Loader=yaml.FullLoader)
                 # change type of deployment (cephfs|cvmfs|hostpath)
                 if cephfs or cluster_spec['cluster'].get('cephfs'):
                     backend_conf_parameters['CEPHFS'] = True
@@ -183,6 +189,9 @@ class KubernetesBackend(ReanaBackendABC):
 
                 if debug or cluster_spec['cluster'].get('debug'):
                     backend_conf_parameters['DEBUG'] = True
+
+                if url or cluster_spec['cluster'].get('url'):
+                    backend_conf_parameters['URL'] = True
 
                 if cluster_spec['cluster'].get('cephfs_monitors'):
                     backend_conf_parameters['CEPHFS_MONITORS'] = \
@@ -213,7 +222,6 @@ class KubernetesBackend(ReanaBackendABC):
                 rs_img = components['reana-server']['image']
                 rjc_img = components['reana-job-controller']['image']
                 rwfc_img = components['reana-workflow-controller']['image']
-                rwm_img = components['reana-workflow-monitor']['image']
                 rmb_img = components['reana-message-broker']['image']
 
                 rs_environment = components['reana-server']\
@@ -221,8 +229,6 @@ class KubernetesBackend(ReanaBackendABC):
                 rjc_environment = components['reana-job-controller'] \
                     .get('environment', [])
                 rwfc_environment = components['reana-workflow-controller'] \
-                    .get('environment', [])
-                rwm_environment = components['reana-workflow-monitor'] \
                     .get('environment', [])
                 rmb_environment = components['reana-message-broker'] \
                     .get('environment', [])
@@ -232,8 +238,6 @@ class KubernetesBackend(ReanaBackendABC):
                 rjc_environment = components['reana-job-controller'] \
                     .get('environment', [])
                 rwfc_environment = components['reana-workflow-controller'] \
-                    .get('environment', [])
-                rwm_environment = components['reana-workflow-monitor'] \
                     .get('environment', [])
                 rmb_environment = components['reana-message-broker'] \
                     .get('environment', [])
@@ -243,8 +247,6 @@ class KubernetesBackend(ReanaBackendABC):
                 rjc_mountpoints = components['reana-job-controller']\
                     .get('mountpoints', [])
                 rwfc_mountpoints = components['reana-workflow-controller']\
-                    .get('mountpoints', [])
-                rwm_mountpoints = components['reana-workflow-monitor'] \
                     .get('mountpoints', [])
                 rmb_mountpoints = components['reana-message-broker'] \
                     .get('mountpoints', [])
@@ -257,23 +259,20 @@ class KubernetesBackend(ReanaBackendABC):
                     render(backend_conf_parameters,
                            REANA_URL=cluster_spec['cluster'].get(
                                'reana_url',
-                               'reana.cern.ch'),
+                               url),
                            CEPHFS_VOLUME_SIZE=cephfs_volume_size or 1,
                            SERVER_IMAGE=rs_img,
                            JOB_CONTROLLER_IMAGE=rjc_img,
                            WORKFLOW_CONTROLLER_IMAGE=rwfc_img,
-                           WORKFLOW_MONITOR_IMAGE=rwm_img,
                            MESSAGE_BROKER_IMAGE=rmb_img,
                            RS_MOUNTPOINTS=rs_mountpoints,
                            RJC_MOUNTPOINTS=rjc_mountpoints,
                            RJC_HOSTNETWORK=rjc_hostnetwork,
                            RWFC_MOUNTPOINTS=rwfc_mountpoints,
-                           RWM_MOUNTPOINTS=rwm_mountpoints,
                            RMB_MOUNTPOINTS=rmb_mountpoints,
                            RS_ENVIRONMENT=rs_environment,
                            RJC_ENVIRONMENT=rjc_environment,
                            RWFC_ENVIRONMENT=rwfc_environment,
-                           RWM_ENVIRONMENT=rwm_environment,
                            RMB_ENVIRONMENT=rmb_environment,
                            )
                 # Strip empty lines for improved readability
@@ -283,7 +282,8 @@ class KubernetesBackend(ReanaBackendABC):
                 # Should print the whole configuration in a loop
                 # Now prints just memory address of generator object
                 logging.debug('Loaded K8S config successfully: \n {}'
-                              .format(yaml.load_all(cluster_conf)))
+                              .format(yaml.load_all(cluster_conf,
+                                                    Loader=yaml.FullLoader)))
 
         except TemplateNotFound as e:
             logging.info(
@@ -312,10 +312,13 @@ class KubernetesBackend(ReanaBackendABC):
         # As Jinja rendered string is basically multiple YAML documents in one
         # string parse it with YAML-library and return a generator containing
         # independent YAML documents (split from `---`) as Python objects.
-        return yaml.load_all(cluster_conf)
+        return yaml.load_all(cluster_conf, Loader=yaml.FullLoader)
 
-    def init(self):
+    def init(self, traefik):
         """Initialize REANA cluster, i.e. deploy REANA components to backend.
+
+        :param traefik: Boolean flag determines if traefik should be
+            initialized.
 
         :return: `True` if init was completed successfully.
         :rtype: bool
@@ -330,6 +333,9 @@ class KubernetesBackend(ReanaBackendABC):
 
         # Should check that cluster is not already initialized.
         # Maybe use `verify_components()` or `get()` each component?
+
+        if traefik is True:
+            self.initialize_traefik()
 
         for manifest in self.cluster_conf:
             try:
@@ -402,6 +408,42 @@ class KubernetesBackend(ReanaBackendABC):
                 raise e
 
         return True
+
+    def initialize_traefik(self):
+        """Install and initialize traefik via Helm.
+
+        Traefik dashboard service is not accessible by default, to make it
+        accessible inside Minikube service type is changed to NodePort.
+        """
+        from reana_cluster.config import (traefik_configuration_file_path,
+                                          traefik_release_name)
+        try:
+            namespace = 'kube-system'
+            label_selector = 'app=traefik'
+            cmd = ('helm install stable/traefik --namespace {} --values {} '
+                   '--name {}').format(namespace,
+                                       traefik_configuration_file_path,
+                                       traefik_release_name)
+            cmd = shlex.split(cmd)
+            subprocess.check_output(cmd)
+            traefik_objects = self._corev1api.list_namespaced_service(
+                namespace=namespace,
+                label_selector=label_selector,
+                limit=2)
+            traefik_dashboard_body = None
+            for traefik_object in traefik_objects.items:
+                if 'dashboard' in traefik_object.metadata.name:
+                    traefik_dashboard_body = traefik_object
+                    break
+            traefik_dashboard_body.spec.type = 'NodePort'
+            self._corev1api.patch_namespaced_service(
+                name=traefik_dashboard_body.metadata.name,
+                namespace=namespace,
+                body=traefik_dashboard_body
+            )
+        except Exception as e:
+            logging.error('Traefik initialization failed \n {}.'.format(e))
+            raise e
 
     def _add_service_acc_key_to_component(self, component_manifest):
         """Add K8S service account credentials to a component.
@@ -585,6 +627,12 @@ class KubernetesBackend(ReanaBackendABC):
                     name=sc.metadata.name,
                     body=k8s_client.V1DeleteOptions())
 
+        # delete traefik objects
+        from reana_cluster.config import traefik_release_name
+        cmd = 'helm del --purge {}'.format(traefik_release_name)
+        cmd = shlex.split(cmd)
+        subprocess.check_output(cmd)
+
         return True
 
     def get_component(self, component_name, component_namespace='default'):
@@ -647,17 +695,24 @@ class KubernetesBackend(ReanaBackendABC):
                 component_namespace)
 
             logging.debug(comp)
-
             comp_info['external_name'] = comp.spec.external_name
             comp_info['external_ip_s'] = [minikube_ip] or \
                 comp.spec.external_i_ps
             comp_info['internal_ip'] = comp.spec.external_i_ps
 
-            for port in comp.spec.ports:
-                if minikube_ip:
-                    comp_info['ports'].append(str(port.node_port))
-                else:
-                    comp_info['ports'].append(str(port.port))
+            if component_name_without_prefix == 'server':
+                traefik_ports = self.get_traefik_ports()
+            else:
+                traefik_ports = None
+
+            if traefik_ports:
+                comp_info['ports'].extend(traefik_ports)
+            else:
+                for port in comp.spec.ports:
+                    if minikube_ip:
+                        comp_info['ports'].append(str(port.node_port))
+                    else:
+                        comp_info['ports'].append(str(port.port))
 
             logging.debug(comp_info)
 
@@ -675,6 +730,36 @@ class KubernetesBackend(ReanaBackendABC):
             raise e
 
         return comp_info
+
+    def get_traefik_ports(self):
+        """Return the list of Traefik ports if Traefik is present."""
+        namespace = 'kube-system'
+        label_selector = 'app=traefik'
+        try:
+            traefik_objects = self._corev1api.list_namespaced_service(
+                namespace=namespace,
+                label_selector=label_selector,
+                limit=2)
+            ports = []
+            for object in traefik_objects.items:
+                for port in object.spec.ports:
+                    if port.name == 'http':
+                        ports.append(port.node_port)
+                    elif port.name == 'https':
+                        ports.append(port.node_port)
+            return ports
+        except ApiException as e:
+            if e.reason == "Not Found":
+                logging.error("K8s traefik objects were not found.")
+            else:
+                logging.error('Exception when calling '
+                              'CoreV1Api->list_namespaced_service:\n {e}'
+                              .format(e))
+            return None
+        except Exception as e:
+            logging.error('Something went wrong. Traefik port '
+                          'was not found:\n {e}'.format(e))
+            return None
 
     def verify_components(self):
         """Verify that REANA components are setup according to specifications.

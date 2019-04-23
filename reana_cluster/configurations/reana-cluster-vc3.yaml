@@ -1,6 +1,6 @@
 cluster:
   type: "kubernetes"
-  version: "v1.12.1"
+  version: "v1.14.0"
   db_config: &db_base_config
     - REANA_SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://reana:reana@db:5432/reana"
   root_path: "/var/reana"
@@ -13,17 +13,19 @@ cluster:
 components:
   reana-workflow-controller:
     type: "docker"
-    image: "reanahub/reana-workflow-controller:latest"
+    image: "khurtado/reana-workflow-controller:job_manager"
     environment:
       - <<: *db_base_config
       - <<: *vc3_user_id
       - SHARED_VOLUME_PATH: "/var/reana"
       - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
+      - REANA_WORKFLOW_ENGINE_IMAGE_CWL: "khurtado/reana-workflow-engine-cwl:job_manager"
+      - REANA_WORKFLOW_ENGINE_IMAGE_YADAGE: "khurtado/reana-workflow-engine-yadage:job_manager"
+      - REANA_WORKFLOW_ENGINE_IMAGE_SERIAL: "khurtado/reana-workflow-engine-serial:job_manager"
 
   reana-job-controller:
     type: "docker"
-    image: "reanahub/reana-job-controller:latest"
-#    hostnetwork: true
+    image: "khurtado/reana-job-controller:job_manager"
     mountpoints:
       - type: hostPath
         name: rjc-temp
@@ -45,16 +47,10 @@ components:
 
   reana-server:
     type: "docker"
-    image: "reanahub/reana-server:latest"
+    image: "khurtado/reana-server:job_manager"
     environment:
       - <<: *db_base_config
 
   reana-message-broker:
     type: "docker"
-    image: "reanahub/reana-message-broker:latest"
-
-  reana-workflow-monitor:
-    type: "docker"
-    image: "reanahub/reana-workflow-monitor:latest"
-    environment:
-      - ZMQ_PROXY_CONNECT: "tcp://zeromq-msg-proxy.default.svc.cluster.local:8667"
+    image: "khurtado/reana-message-broker:latest"

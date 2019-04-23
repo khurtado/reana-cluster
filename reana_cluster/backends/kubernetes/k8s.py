@@ -92,8 +92,11 @@ class KubernetesBackend(ReanaBackendABC):
 
         k8s_api_client_config = Configuration()
 
-        k8s_config.load_kube_config(kubeconfig, self.kubeconfig_context,
-                                    k8s_api_client_config)
+        if cluster_spec['cluster'].get('kubeproxy', None):
+            k8s_api_client_config.host = cluster_spec['cluster'].get('kubeproxy')
+        else:
+            k8s_config.load_kube_config(kubeconfig, self.kubeconfig_context,
+                                        k8s_api_client_config)
 
         Configuration.set_default(k8s_api_client_config)
 
@@ -479,7 +482,7 @@ class KubernetesBackend(ReanaBackendABC):
                 # in job-controller deployment manifest
                 for i in (component_manifest['spec']['template']['spec']
                                             ['volumes']):
-                    if i['name'] == 'svaccount':
+                    if i['name'] == 'svaccount' or i['name'] == 'svaccount-alt':
                         i['secret']['secretName'] = srv_acc_token
 
         return component_manifest

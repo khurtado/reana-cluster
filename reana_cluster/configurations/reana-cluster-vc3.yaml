@@ -3,9 +3,9 @@ cluster:
   version: "v1.14.0"
   db_config: &db_base_config
     - REANA_SQLALCHEMY_DATABASE_URI: "postgresql+psycopg2://reana:reana@db:5432/reana"
-  root_path: "/var/reana"
-  shared_volume_path: "/var/reana"
-  db_persistence_path: "/var/reana/db"
+  root_path: "/reana"
+  shared_volume_path: "/reana"
+  db_persistence_path: "/reana/db"
 #  kubeproxy: "http://127.0.0.1:8080"
   vc3_config: &vc3_user_id
     - VC3USERID: "1002"
@@ -17,7 +17,7 @@ components:
     environment:
       - <<: *db_base_config
       - <<: *vc3_user_id
-      - SHARED_VOLUME_PATH: "/var/reana"
+      - SHARED_VOLUME_PATH: "/reana"
       - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
       - REANA_WORKFLOW_ENGINE_IMAGE_CWL: "khurtado/reana-workflow-engine-cwl:job_manager"
       - REANA_WORKFLOW_ENGINE_IMAGE_YADAGE: "khurtado/reana-workflow-engine-yadage:job_manager"
@@ -41,7 +41,7 @@ components:
     environment:
       - <<: *db_base_config
       - <<: *vc3_user_id
-      - SHARED_VOLUME_PATH: "/var/reana"
+      - SHARED_VOLUME_PATH: "/reana"
         # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
       - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=6553_6434_3>'
 

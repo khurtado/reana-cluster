@@ -53,7 +53,7 @@ install_requires = [
     'click>=7,<8',
     'Jinja2>=2.9.6,<2.11',
     'jsonschema[format]>=2.6.0,<2.7',
-    'kubernetes==9.0.0',
+    'kubernetes>=9.0.0,<10.0.0',
     'PyYAML>=5.1',
     'reana-commons[kubernetes]>=0.5.0.dev20190220,<0.6.0',
     'tablib>=0.12.1,<0.13',

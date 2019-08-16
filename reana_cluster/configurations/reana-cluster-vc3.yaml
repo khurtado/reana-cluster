@@ -53,6 +53,7 @@ components:
     environment:
       - <<: *db_base_config
       - <<: *shared_path
+      - <<: *vc3_user_id
 
   reana-message-broker:
     type: "docker"

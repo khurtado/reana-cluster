@@ -29,6 +29,7 @@ spec:
         {% for mount in mountpoints %}
         - mountPath: {{mount['path'].split(':')[1]}}
           name: {{mount['name']}}
+          readOnly: {{ mount['readOnly'] or False }}
         {% endfor %}
         ports:
         - containerPort: 5000

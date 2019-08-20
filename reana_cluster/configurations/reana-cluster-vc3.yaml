@@ -35,9 +35,10 @@ components:
       - <<: *vc3_user_id
       - <<: *shared_path
       - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
-      - REANA_WORKFLOW_ENGINE_IMAGE_CWL: "khurtado/reana-workflow-engine-cwl:job_manager"
-      - REANA_WORKFLOW_ENGINE_IMAGE_YADAGE: "khurtado/reana-workflow-engine-yadage:job_manager"
-      - REANA_WORKFLOW_ENGINE_IMAGE_SERIAL: "khurtado/reana-workflow-engine-serial:job_manager"
+      - REANA_WORKFLOW_ENGINE_IMAGE_CWL: "khurtado/reana-workflow-engine-cwl:vc3v2"
+      - REANA_WORKFLOW_ENGINE_IMAGE_YADAGE: "khurtado/reana-workflow-engine-yadage:vc3v2"
+      - REANA_WORKFLOW_ENGINE_IMAGE_SERIAL: "khurtado/reana-workflow-engine-serial:vc3v2"
+      - REANA_JOB_CONTROLLER_IMAGE: "khurtado/reana-job-controller:vc3v2"
         # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
       - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=6553_6434_3>'
 

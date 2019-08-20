@@ -1,0 +1,54 @@
+cluster:
+  type: "kubernetes"
+  version: "v1.14.0"
+  db_config: &db_base_config
+    - REANA_DB_NAME: "reana"
+    - REANA_DB_HOST: "db"
+    - REANA_DB_PORT: "5432"
+  root_path: "/reana"
+  shared_volume_path: &spath "/reana"
+  db_persistence_path: "/reana/db"
+#  kubeproxy: "http://127.0.0.1:8080"
+  vc3_config: &vc3_user_id
+    - VC3USERID: "1002"
+  shared_path: &shared_path
+    - SHARED_VOLUME_PATH: *spath
+
+components:
+  reana-workflow-controller:
+    type: "docker"
+    image: "khurtado/reana-workflow-controller:vc3v2"
+    mountpoints:
+      - type: hostPath
+        name: rjc-temp
+        path: "/tmp:/tmp"
+      - type: hostPath
+        name: rjc-shared-host-users
+        path: "/etc/passwd:/etc/passwd"
+        readOnly: true
+      - type: hostPath
+        name: rjc-shared-groups
+        path: "/etc/groups:/etc/groups"
+        readOnly: true
+    environment:
+      - <<: *db_base_config
+      - <<: *vc3_user_id
+      - <<: *shared_path
+      - ORGANIZATIONS: "default,alice,atlas,cms,lhcb"
+      - REANA_WORKFLOW_ENGINE_IMAGE_CWL: "khurtado/reana-workflow-engine-cwl:job_manager"
+      - REANA_WORKFLOW_ENGINE_IMAGE_YADAGE: "khurtado/reana-workflow-engine-yadage:job_manager"
+      - REANA_WORKFLOW_ENGINE_IMAGE_SERIAL: "khurtado/reana-workflow-engine-serial:job_manager"
+        # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
+      - HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=6553_6434_3>'
+
+  reana-server:
+    type: "docker"
+    image: "khurtado/reana-server:vc3v2"
+    environment:
+      - <<: *db_base_config
+      - <<: *shared_path
+      - <<: *vc3_user_id
+
+  reana-message-broker:
+    type: "docker"
+    image: "khurtado/reana-message-broker:latest"

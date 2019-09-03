@@ -23,6 +23,10 @@ components:
   reana-workflow-controller:
     type: "docker"
     image: "khurtado/reana-workflow-controller:vc3v2"
+    mountpoints:
+      - type: hostPath
+        name: rjc-temp
+        path: "/tmp:/tmp"
     environment:
       - <<: *db_base_config
       - <<: *workflow_user_id
@@ -34,7 +38,7 @@ components:
       - REANA_JOB_CONTROLLER_IMAGE: "khurtado/reana-job-controller:vc3v2p1"
         # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
       - REANA_JOB_CONTROLLER_VC3_HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=6553_6434_3>'
-      - REANA_JOB_CONTROLLER_EXTRA_MOUNTPOINTS: "/tmp"
+      - REANA_JOB_CONTROLLER_HOST_SHARE_TMPDIR: True
 
   reana-server:
     type: "docker"

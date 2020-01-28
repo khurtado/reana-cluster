@@ -19,7 +19,7 @@ readme = open('README.rst').read()
 history = open('CHANGES.rst').read()
 
 tests_require = [
-    'pytest-reana>=0.6.0.dev20190705,<0.7.0',
+    'pytest-reana>=0.6.0,<0.7.0',
 ]
 
 extras_require = {
@@ -44,11 +44,9 @@ setup_requires = [
 install_requires = [
     'click>=7',
     'Jinja2>=2.9.6,<2.11',
-    'jsonschema[format]>=2.6.0,<2.7',
     'PyYAML>=5.1',
-    'reana-commons[kubernetes]>=0.6.0.dev20190604,<0.7.0',
+    'reana-commons[kubernetes]>=0.6.0,<0.7.0',
     'tablib>=0.12.1,<0.13',
-    'urllib3==1.25.3',
 ]
 
 packages = find_packages()
@@ -93,6 +91,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python',
         'Topic :: System :: Clustering',

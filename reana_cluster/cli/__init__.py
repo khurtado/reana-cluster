@@ -52,12 +52,25 @@ class Config(object):
     help='If set, specifications file is not validated before '
          'starting the initialization.')
 @click.option(
+    '--eos', is_flag=True,
+    help='If EOS is available in the deployed cluster, this config will '
+         'make it available inside the REANA jobs.')
+@click.option(
     '--cephfs', is_flag=True,
     help='Set cephfs volume for cluster storage.')
 @click.option(
     '--cephfs-volume-size',
     type=int,
     help='Set cephfs volume size in GB.')
+@click.option(
+    '--cephfs-storageclass',
+    help='A preset cephfs storageclass.')
+@click.option(
+    '--cephfs-os-share-id',
+    help='Manila share id.')
+@click.option(
+    '--cephfs-os-share-access-id',
+    help='Manila share access id.')
 @click.option(
     '--debug', is_flag=True,
     help='If set, deploy REANA in debug mode.')
@@ -69,8 +82,9 @@ class Config(object):
     '--ui', is_flag=True,
     help='Deploy the REANA-UI inside the REANA Cluster.')
 @click.pass_context
-def cli(ctx, loglevel, skip_validation, file,
-        cephfs, cephfs_volume_size, debug, url, ui):
+def cli(ctx, loglevel, skip_validation, file, eos,
+        cephfs, cephfs_volume_size, cephfs_storageclass, cephfs_os_share_id,
+        cephfs_os_share_access_id, debug, url, ui):
     """Command line application for managing a REANA cluster."""
     logging.basicConfig(
         format=DEBUG_LOG_FORMAT if loglevel == 'debug' else LOG_FORMAT,
@@ -80,10 +94,14 @@ def cli(ctx, loglevel, skip_validation, file,
     try:
         cluster_spec = load_spec_file(click.format_filename(file),
                                       skip_validation)
-        if cephfs_volume_size and not cephfs:
+        cephfs_options = [cephfs_volume_size, cephfs_storageclass,
+                          cephfs_os_share_id, cephfs_os_share_access_id]
+        if any(cephfs_options) and not cephfs:
             cephfs_volume_size = None
-            click.echo(click.style('CEPHFS volume size will not be set because'
-                                   ' missing `--cephfs` flag', fg='yellow'))
+            cephfs_storageclass = None
+            click.echo(click.style('CEPHFS configuration not taken into '
+                                   ' account because of missing `--cephfs`'
+                                   ' flag', fg='yellow'))
         ctx.obj = Config()
 
         cluster_type = cluster_spec['cluster']['type']
@@ -93,8 +111,12 @@ def cli(ctx, loglevel, skip_validation, file,
                      .format(cluster_type))
         ctx.obj.backend = supported_backends[cluster_type](
             cluster_spec,
+            eos=eos,
             cephfs=cephfs,
             cephfs_volume_size=cephfs_volume_size,
+            cephfs_storageclass=cephfs_storageclass,
+            cephfs_os_share_id=cephfs_os_share_id,
+            cephfs_os_share_access_id=cephfs_os_share_access_id,
             debug=debug,
             url=url,
             ui=ui)

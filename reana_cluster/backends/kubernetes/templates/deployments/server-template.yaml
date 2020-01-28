@@ -1,15 +1,19 @@
 ---
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: server
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: server
   template:
     metadata:
       labels:
         app: server
     spec:
+      serviceAccountName: {{REANA_SERVICE_ACCOUNT_NAME}}
       containers:
       - name: server
         image: {{SERVER_IMAGE}}
@@ -54,6 +58,31 @@ spec:
             secretKeyRef:
               name: reana-db-secrets
               key: password
+        - name: CERN_CONSUMER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: reana-cern-sso-secrets
+              key: CERN_CONSUMER_KEY
+        - name: CERN_CONSUMER_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: reana-cern-sso-secrets
+              key: CERN_CONSUMER_SECRET
+        - name: REANA_GITLAB_OAUTH_APP_ID
+          valueFrom:
+            secretKeyRef:
+              name: reana-cern-gitlab-secrets
+              key: REANA_GITLAB_OAUTH_APP_ID
+        - name: REANA_GITLAB_OAUTH_APP_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: reana-cern-gitlab-secrets
+              key: REANA_GITLAB_OAUTH_APP_SECRET
+        - name: REANA_GITLAB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: reana-cern-gitlab-secrets
+              key: REANA_GITLAB_HOST
         {% endif %}
       - name: scheduler
         image: {{SERVER_IMAGE}}

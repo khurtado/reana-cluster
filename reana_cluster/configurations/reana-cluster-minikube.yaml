@@ -1,6 +1,6 @@
 cluster:
   type: "kubernetes"
-  version: "v1.14.0"
+  version: "v1.16.3"
   db_config: &db_base_config
     - REANA_DB_NAME: "reana"
     - REANA_DB_HOST: "db"
@@ -12,28 +12,21 @@ cluster:
 components:
   reana-workflow-controller:
     type: "docker"
-    image: "reanahub/reana-workflow-controller:latest"
+    image: "reanahub/reana-workflow-controller:0.6.0"
     environment:
       - <<: *db_base_config
       - SHARED_VOLUME_PATH: "/var/reana"
-      # GitLab service host name i.e. `gitlab.cern.ch`
-      - REANA_GITLAB_HOST: "<CHANGEME>"
+      - REANA_JOB_CONTROLLER_IMAGE: "reanahub/reana-job-controller:0.6.0"
+      - REANA_WORKFLOW_ENGINE_IMAGE_CWL: "reanahub/reana-workflow-engine-cwl:0.6.0"
+      - REANA_WORKFLOW_ENGINE_IMAGE_YADAGE: "reanahub/reana-workflow-engine-yadage:0.6.0"
+      - REANA_WORKFLOW_ENGINE_IMAGE_SERIAL: "reanahub/reana-workflow-engine-serial:0.6.0"
 
   reana-server:
     type: "docker"
-    image: "reanahub/reana-server:latest"
+    image: "reanahub/reana-server:0.6.0"
     environment:
       - <<: *db_base_config
-      # In CERN SSO displayed in the "List OAuth Clients" tab as `client_id`
-      - CERN_CONSUMER_KEY: "<CHANGEME>"
-      # In CERN SSO displayed in the OAuth Client view tab as `Secret`
-      - CERN_CONSUMER_SECRET: "<CHANGEME>"
-      - REANA_GITLAB_OAUTH_APP_ID: "<CHANGEME>"
-      - REANA_GITLAB_OAUTH_APP_SECRET: "<CHANGEME>"
-      # GitLab service host name i.e. `gitlab.com`
-      - REANA_GITLAB_HOST: "<CHANGEME>"
-      - REANA_GITLAB_OAUTH_REDIRECT_URL: "<CHANGEME>"
 
   reana-message-broker:
     type: "docker"
-    image: "reanahub/reana-message-broker:latest"
+    image: "reanahub/reana-message-broker:0.6.0"

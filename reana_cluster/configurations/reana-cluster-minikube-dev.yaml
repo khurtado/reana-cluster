@@ -1,6 +1,6 @@
 cluster:
   type: "kubernetes"
-  version: "v1.14.0"
+  version: "v1.16.3"
   db_config: &db_base_config
     - REANA_DB_NAME: "reana"
     - REANA_DB_USERNAME: "reana"
@@ -61,7 +61,6 @@ components:
       - REANA_GITLAB_OAUTH_APP_SECRET: "<CHANGEME>"
       # GitLab service host name i.e. `gitlab.com`
       - REANA_GITLAB_HOST: "<CHANGEME>"
-      - REANA_GITLAB_OAUTH_REDIRECT_URL: "<CHANGEME>"
   reana-message-broker:
     type: "docker"
     image: "reanahub/reana-message-broker:latest"

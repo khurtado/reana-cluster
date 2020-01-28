@@ -40,8 +40,8 @@ class KubernetesBackend(ReanaBackendABC):
     _conf = {
         'templates_folder': pkg_resources.resource_filename(
             __name__, '/templates'),
-        'min_version': 'v1.14.0',
-        'max_version': 'v1.14.0',
+        'min_version': 'v1.16.3',
+        'max_version': 'v1.16.3',
     }
 
     def __init__(self,
@@ -49,9 +49,12 @@ class KubernetesBackend(ReanaBackendABC):
                  cluster_conf=None,
                  kubeconfig=None,
                  kubeconfig_context=None,
+                 eos=False,
                  cephfs=False,
                  cephfs_volume_size=None,
-                 cvmfs=False,
+                 cephfs_storageclass=None,
+                 cephfs_os_share_id=None,
+                 cephfs_os_share_access_id=None,
                  debug=False,
                  url=None,
                  ui=None):
@@ -72,12 +75,14 @@ class KubernetesBackend(ReanaBackendABC):
 
         :param kubeconfig_context: set the active context. If is set to `None`,
             current_context from config file will be used.
+        :param eos: Boolean flag toggling the mount of EOS volume for jobs.
         :param cephfs: Boolean flag toggling the usage of a cephfs volume as
             storage backend.
         :param cephfs_volume_size: Int number which represents cephfs volume
             size (GB)
-        :param cvmfs: Boolean flag toggling the mounting of cvmfs volumes in
-            the cluster pods.
+        :param cephfs_storageclass: Name of an existing cephfs storageclass.
+        :param cephfs_os_share_id: CephFS Manila share id.
+        :param cephfs_os_share_access_id: CephFS Manila share access id.
         :param debug: Boolean flag setting debug mode.
         :param url: REANA cluster url.
         :param ui: Should REANA be deployed with REANA-UI?.
@@ -102,20 +107,26 @@ class KubernetesBackend(ReanaBackendABC):
         # Instantiate clients for various Kubernetes REST APIs
         self._corev1api = k8s_client.CoreV1Api()
         self._versionapi = k8s_client.VersionApi()
-        self._extbetav1api = k8s_client.ExtensionsV1beta1Api()
+        self._appsv1api = k8s_client.AppsV1Api()
         self._rbacauthorizationv1api = k8s_client.RbacAuthorizationV1Api()
         self._storagev1api = k8s_client.StorageV1Api()
+        self._networkingv1api = k8s_client.NetworkingV1beta1Api()
 
         self.k8s_api_client_config = k8s_api_client_config
 
         self.cluster_spec = cluster_spec
         self.cluster_conf = cluster_conf or \
-            self.generate_configuration(cluster_spec,
-                                        cephfs=cephfs,
-                                        cephfs_volume_size=cephfs_volume_size,
-                                        debug=debug,
-                                        url=url,
-                                        ui=ui)
+            self.generate_configuration(
+                cluster_spec,
+                eos=eos,
+                cephfs=cephfs,
+                cephfs_volume_size=cephfs_volume_size,
+                cephfs_storageclass=cephfs_storageclass,
+                cephfs_os_share_id=cephfs_os_share_id,
+                cephfs_os_share_access_id=cephfs_os_share_access_id,
+                debug=debug,
+                url=url,
+                ui=ui)
 
     @property
     def cluster_type(self):
@@ -147,21 +158,29 @@ class KubernetesBackend(ReanaBackendABC):
         return self.kubeconfig
 
     @classmethod
-    def generate_configuration(cls, cluster_spec, cvmfs=False, cephfs=False,
-                               cephfs_volume_size=None, debug=False, url=None,
-                               ui=None):
+    def generate_configuration(
+            cls, cluster_spec, cephfs=False, eos=False,
+            cephfs_volume_size=None,
+            cephfs_storageclass=None,
+            cephfs_os_share_id=None,
+            cephfs_os_share_access_id=None,
+            debug=False, url=None, ui=None):
         """Generate Kubernetes manifest files used to init REANA cluster.
 
         :param cluster_spec: Dictionary representing complete REANA
             cluster spec file.
+        :param eos: Boolean flag toggling the mount of EOS volume for jobs.
         :param cephfs: Boolean which represents whether REANA is
             deployed with CEPH or not.
         :param cephfs_volume_size: Int to set CEPH volume size in GB.
-        :param cvmfs: Boolean which represents whether REANA is
-            deployed with CVMFS or not.
+        :param cephfs_storageclass: Name of an existing cephfs storageclass.
+        :param cephfs_os_share_id: CephFS Manila share id.
+        :param cephfs_os_share_access_id: CephFS Manila share access id.
         :param debug: Boolean which represents whether REANA is
             deployed in debug mode or not.
         :param url: REANA cluster url.
+        :param ui: Boolean which represents whether REANA is
+            deployed with the User Interface or not.
 
         :return: A generator/iterable of generated Kubernetes YAML manifests
             as Python objects.
@@ -182,24 +201,31 @@ class KubernetesBackend(ReanaBackendABC):
                 # Load backend conf params
                 backend_conf_parameters = yaml.load(f.read(),
                                                     Loader=yaml.FullLoader)
-                # change type of deployment (cephfs|cvmfs|hostpath)
+                # Configure CephFS is chosen as shared storage backend
                 if cephfs or cluster_spec['cluster'].get('cephfs'):
                     backend_conf_parameters['CEPHFS'] = True
-                    if not cephfs_volume_size:
-                        cephfs_volume_size = \
-                            cluster_spec['cluster'].get(
-                                'cephfs_volume_size',
-                                200)
+                    backend_conf_parameters['CEPHFS_STORAGECLASS'] = \
+                        cephfs_storageclass or 'manila-csicephfs-share'
+                    backend_conf_parameters['CEPHFS_VOLUME_SIZE'] = \
+                        cluster_spec['cluster'].get(
+                            'cephfs_volume_size', cephfs_volume_size)
+                    backend_conf_parameters['CEPHFS_OS_SHARE_ID'] = \
+                        cluster_spec['cluster'].get(
+                            'cephfs_os_share_id', cephfs_os_share_id)
+                    backend_conf_parameters['CEPHFS_OS_SHARE_ACCESS_ID'] = \
+                        cluster_spec['cluster'].get(
+                            'cephfs_os_share_access_id',
+                            cephfs_os_share_access_id)
+
+                if eos or cluster_spec['cluster'].get('eos'):
+                    backend_conf_parameters['EOS'] = \
+                        cluster_spec['cluster'].get('eos', eos)
 
                 if debug or cluster_spec['cluster'].get('debug'):
                     backend_conf_parameters['DEBUG'] = True
 
                 if ui or cluster_spec['cluster'].get('ui'):
                     backend_conf_parameters['UI'] = True
-
-                if cluster_spec['cluster'].get('cephfs_monitors'):
-                    backend_conf_parameters['CEPHFS_MONITORS'] = \
-                        cluster_spec['cluster'].get('cephfs_monitors')
 
                 if cluster_spec['cluster'].get('root_path'):
                     backend_conf_parameters['ROOT_PATH'] = \
@@ -234,13 +260,6 @@ class KubernetesBackend(ReanaBackendABC):
                 rmb_environment = components['reana-message-broker'] \
                     .get('environment', [])
 
-                rs_environment = components['reana-server']\
-                    .get('environment', [])
-                rwfc_environment = components['reana-workflow-controller'] \
-                    .get('environment', [])
-                rmb_environment = components['reana-message-broker'] \
-                    .get('environment', [])
-
                 rs_mountpoints = components['reana-server']\
                     .get('mountpoints', [])
                 rwfc_mountpoints = components['reana-workflow-controller']\
@@ -254,7 +273,6 @@ class KubernetesBackend(ReanaBackendABC):
                            REANA_URL=cluster_spec['cluster'].get(
                                'reana_url',
                                url),
-                           CEPHFS_VOLUME_SIZE=cephfs_volume_size or 1,
                            SERVER_IMAGE=rs_img,
                            WORKFLOW_CONTROLLER_IMAGE=rwfc_img,
                            MESSAGE_BROKER_IMAGE=rmb_img,
@@ -264,6 +282,7 @@ class KubernetesBackend(ReanaBackendABC):
                            RS_ENVIRONMENT=rs_environment,
                            RWFC_ENVIRONMENT=rwfc_environment,
                            RMB_ENVIRONMENT=rmb_environment,
+                           REANA_SERVICE_ACCOUNT_NAME='reana-system'
                            )
                 # Strip empty lines for improved readability
                 cluster_conf = '\n'.join(
@@ -304,11 +323,15 @@ class KubernetesBackend(ReanaBackendABC):
         # independent YAML documents (split from `---`) as Python objects.
         return yaml.load_all(cluster_conf, Loader=yaml.FullLoader)
 
-    def init(self, traefik):
+    def init(self, traefik, interactive):
         """Initialize REANA cluster, i.e. deploy REANA components to backend.
 
         :param traefik: Boolean flag determines if traefik should be
             initialized.
+        :type traefik: bool
+        :param interactive: Boolean flag determines if configuration should be
+            provided by the user via interactive prompt.
+        :type interactive: bool
 
         :return: `True` if init was completed successfully.
         :rtype: bool
@@ -327,23 +350,16 @@ class KubernetesBackend(ReanaBackendABC):
         if traefik is True:
             self.initialize_traefik()
 
+        from reana_cluster.utils import check_needed_secrets_are_created
+        check_needed_secrets_are_created(interactive=interactive)
+
         for manifest in self.cluster_conf:
             try:
 
                 logging.debug(json.dumps(manifest))
 
                 if manifest['kind'] == 'Deployment':
-
-                    # REANA Job Controller needs access to K8S-cluster's
-                    # service-account-token in order to create new Pods.
-
-                    components_k8s_token = \
-                        ['reana-server', 'workflow-controller']
-                    if manifest['metadata']['name'] in components_k8s_token:
-                        manifest = self._add_service_acc_key_to_component(
-                            manifest)
-
-                    self._extbetav1api.create_namespaced_deployment(
+                    self._appsv1api.create_namespaced_deployment(
                         body=manifest,
                         namespace=manifest['metadata'].get('namespace',
                                                            'default'))
@@ -363,13 +379,19 @@ class KubernetesBackend(ReanaBackendABC):
                                                            'default'))
                 elif manifest['kind'] == 'ClusterRole':
                     self._rbacauthorizationv1api.create_cluster_role(
-                        body=manifest)
+                            body=manifest)
                 elif manifest['kind'] == 'ClusterRoleBinding':
-                    self._rbacauthorizationv1api.\
-                        create_cluster_role_binding(body=manifest)
+                    self._rbacauthorizationv1api.create_cluster_role_binding(
+                            body=manifest)
 
                 elif manifest['kind'] == 'Ingress':
-                    self._extbetav1api.create_namespaced_ingress(
+                    self._networkingv1api.create_namespaced_ingress(
+                        body=manifest,
+                        namespace=manifest['metadata'].get('namespace',
+                                                           'default'))
+
+                elif manifest['kind'] == 'ServiceAccount':
+                    self._corev1api.create_namespaced_service_account(
                         body=manifest,
                         namespace=manifest['metadata'].get('namespace',
                                                            'default'))
@@ -414,12 +436,19 @@ class KubernetesBackend(ReanaBackendABC):
         from reana_cluster.config import (traefik_configuration_file_path,
                                           traefik_release_name)
         try:
+            add_helm_repo_cmd = \
+                ('helm repo add stable'
+                 ' https://kubernetes-charts.storage.googleapis.com/')
+            add_helm_repo_cmd = shlex.split(add_helm_repo_cmd)
+            subprocess.check_output(add_helm_repo_cmd)
             namespace = 'kube-system'
             label_selector = 'app=traefik'
-            cmd = ('helm install stable/traefik --namespace {} --values {} '
-                   '--name {}').format(namespace,
-                                       traefik_configuration_file_path,
-                                       traefik_release_name)
+            cmd = ('helm install {} stable/traefik --namespace {} '
+                   ' --values {} ').format(
+                       traefik_release_name,
+                       namespace,
+                       traefik_configuration_file_path,
+                       traefik_release_name)
             cmd = shlex.split(cmd)
             subprocess.check_output(cmd)
             traefik_objects = self._corev1api.list_namespaced_service(
@@ -440,45 +469,6 @@ class KubernetesBackend(ReanaBackendABC):
         except Exception as e:
             logging.error('Traefik initialization failed \n {}.'.format(e))
             raise e
-
-    def _add_service_acc_key_to_component(self, component_manifest):
-        """Add K8S service account credentials to a component.
-
-        In order to interact (e.g. create Pods to run workflows) with
-        Kubernetes cluster REANA Job Controller needs to have access to
-        API credentials of Kubernetes service account.
-
-        :param component_manifest: Python object representing Kubernetes
-            Deployment manifest file of a REANA component generated with
-            `generate_configuration()`.
-
-        :return: Python object representing Kubernetes Deployment-
-            manifest file of the given component with service account
-            credentials of the Kubernetes instance `reana-cluster`
-            if configured to interact with.
-        """
-        # Get all secrets for default namespace
-        # Cannot use `k8s_corev1.read_namespaced_secret()` since
-        # exact name of the token (e.g. 'default-token-8p260') is not know.
-        secrets = self._corev1api.list_namespaced_secret(
-            'default', include_uninitialized='false')
-
-        # Maybe debug print all secrets should not be enabled?
-        # logging.debug(k8s_corev1.list_secret_for_all_namespaces())
-
-        # K8S might return many secrets. Find `service-account-token`.
-        for item in secrets.items:
-            if item.type == 'kubernetes.io/service-account-token':
-                srv_acc_token = item.metadata.name
-
-                # Search for appropriate place to place the token
-                # in job-controller deployment manifest
-                for i in (component_manifest['spec']['template']['spec']
-                                            ['volumes']):
-                    if i['name'] == 'svaccount':
-                        i['secret']['secretName'] = srv_acc_token
-
-        return component_manifest
 
     def _cluster_running(self):
         """Verify that interaction with cluster backend is possible.
@@ -505,11 +495,16 @@ class KubernetesBackend(ReanaBackendABC):
         """
         raise NotImplementedError()
 
-    def down(self):
+    def down(self, delete_traefik=False, delete_secrets=False):
         """Bring REANA cluster down, i.e. deletes all deployed components.
 
         Deletes all Kubernetes Deployments, Namespaces, Resourcequotas and
         Services that were created during initialization of REANA cluster.
+
+        :param delete_traefik: Whether REANA traefik should be deleted or not.
+        :type delete_traefik: bool
+        :param delete_secrets: Whether REANA secrets should be deleted or not.
+        :type delete_secrets: bool
 
         :return: `True` if all components were destroyed successfully.
         :rtype: bool
@@ -530,12 +525,13 @@ class KubernetesBackend(ReanaBackendABC):
         # All K8S objects seem to use default -namespace.
         # Is this true always, or do we create something for non-default
         # namespace (in the future)?
+
         for manifest in self.cluster_conf:
             try:
                 logging.debug(json.dumps(manifest))
 
                 if manifest['kind'] == 'Deployment':
-                    self._extbetav1api.delete_namespaced_deployment(
+                    self._appsv1api.delete_namespaced_deployment(
                         name=manifest['metadata']['name'],
                         body=k8s_client.V1DeleteOptions(
                             propagation_policy="Foreground",
@@ -574,16 +570,24 @@ class KubernetesBackend(ReanaBackendABC):
                             body=k8s_client.V1DeleteOptions())
 
                 elif manifest['kind'] == 'Ingress':
-                    self._extbetav1api.delete_namespaced_ingress(
+                    self._networkingv1api.delete_namespaced_ingress(
                             name=manifest['metadata']['name'],
                             body=k8s_client.V1DeleteOptions(),
                             namespace=manifest['metadata'].get('namespace',
                                                                'default'))
 
+                elif manifest['kind'] == 'ServiceAccount':
+                    self._corev1api.delete_namespaced_service_account(
+                        name=manifest['metadata']['name'],
+                        namespace=manifest['metadata'].get('namespace',
+                                                           'default'))
+
                 elif manifest['kind'] == 'StorageClass':
                     self._storagev1api.delete_storage_class(
                             name=manifest['metadata']['name'],
-                            body=k8s_client.V1DeleteOptions())
+                            body=k8s_client.V1DeleteOptions(),
+                            namespace=manifest['metadata'].get('namespace',
+                                                               'default'))
 
                 elif manifest['kind'] == 'PersistentVolumeClaim':
                     self._corev1api.\
@@ -623,11 +627,22 @@ class KubernetesBackend(ReanaBackendABC):
                     name=sc.metadata.name,
                     body=k8s_client.V1DeleteOptions())
 
-        # delete traefik objects
-        from reana_cluster.config import traefik_release_name
-        cmd = 'helm del --purge {}'.format(traefik_release_name)
-        cmd = shlex.split(cmd)
-        subprocess.check_output(cmd)
+        if delete_traefik:
+            from reana_cluster.config import traefik_release_name
+            namespace = 'kube-system'
+            helm_ls_cmd = 'helm ls -n {}'.format(namespace)
+            helm_ls_cmd = shlex.split(helm_ls_cmd)
+            helm_ls_output = \
+                subprocess.check_output(helm_ls_cmd).decode('UTF-8')
+            if traefik_release_name in helm_ls_output:
+                cmd = 'helm del --namespace {} {}'.format(
+                    namespace,
+                    traefik_release_name)
+                cmd = shlex.split(cmd)
+                subprocess.check_output(cmd)
+        if delete_secrets:
+            from reana_cluster.utils import delete_reana_secrets
+            delete_reana_secrets()
 
         return True
 
@@ -796,7 +811,7 @@ class KubernetesBackend(ReanaBackendABC):
                     spec_img = manifest['spec'][
                         'template']['spec']['containers'][0]['image']
 
-                    deployed_comp = self._extbetav1api. \
+                    deployed_comp = self._appsv1api. \
                         read_namespaced_deployment(component_name, 'default')
 
                     logging.debug(deployed_comp)

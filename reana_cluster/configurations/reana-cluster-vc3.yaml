@@ -8,14 +8,14 @@ cluster:
   root_path: "/reana"
   shared_volume_path: &spath "/reana"
   db_persistence_path: "/reana/db"
-#  kubeproxy: "http://127.0.0.1:8080"
   vc3_config: &vc3_user_id
-    - VC3USERID: "1002"
+    - VC3USERID: "FixMe"
 
+  # When deploying a VC3 cluster, these are automatically filled.
   user_config: &workflow_user_id
-    - WORKFLOW_RUNTIME_USER_UID: "1002"
-    - WORKFLOW_RUNTIME_USER_GID: "100"
-    - WORKFLOW_RUNTIME_USER_NAME: "khurtado"
+    - WORKFLOW_RUNTIME_USER_UID: "FixMe"
+    - WORKFLOW_RUNTIME_USER_GID: "FixMe"
+    - WORKFLOW_RUNTIME_USER_NAME: "FixMe"
   shared_path: &shared_path
     - SHARED_VOLUME_PATH: *spath
 
@@ -37,7 +37,7 @@ components:
       - REANA_WORKFLOW_ENGINE_IMAGE_SERIAL: "khurtado/reana-workflow-engine-serial:vc3v2p2"
       - REANA_JOB_CONTROLLER_IMAGE: "khurtado/reana-job-controller:vc3v2p2"
         # To get HTCondor schedd address: $ condor_status -schedd -af MyAddress
-      - REANA_JOB_CONTROLLER_VC3_HTCONDOR_ADDR: '<128.135.158.176:9618?addrs=128.135.158.176-9618+[--1]-9618&noUDP&sock=6553_6434_3>'
+      - REANA_JOB_CONTROLLER_VC3_HTCONDOR_ADDR: 'FixMe'
       - REANA_JOB_CONTROLLER_HOST_SHARE_TMPDIR: True
 
   reana-server:
